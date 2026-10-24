@@ -348,8 +348,8 @@ define(['jquery', 'storage'], function($, Storage) {
         },
 
         setAchievementData: function($el, name, desc) {
-            $el.find('.achievement-name').html(name);
-            $el.find('.achievement-description').html(desc);
+            $el.find('.achievement-name').text(name);
+            $el.find('.achievement-description').text(desc);
         },
 
         toggleCredits: function() {

@@ -5,6 +5,9 @@ var cls = require("./lib/class"),
     Utils = require("./utils"),
     Properties = require("./properties"),
     Formulas = require("./formulas"),
+    Character = require("./character"),
+    Mob = require("./mob"),
+    Chest = require("./chest"),
     check = require("./format").check,
     Types = require("../../shared/js/gametypes");
 
@@ -23,14 +26,18 @@ module.exports = Player = Character.extend({
         this.lastCheckpoint = null;
         this.formatChecker = new FormatChecker();
         this.disconnectTimeout = null;
+        this.resetHandshakeTimeout();
         
         this.connection.listen(function(message) {
+            if(!check(message)) {
+                var actionStr = (Array.isArray(message) && message.length > 0) ? Types.getMessageTypeAsString(message[0]) : "UNKNOWN";
+                self.connection.close("Invalid "+actionStr+" message format");
+                return;
+            }
             var action = parseInt(message[0]);
             
-            log.debug("Received: "+message);
-            if(!check(message)) {
-                self.connection.close("Invalid "+Types.getMessageTypeAsString(action)+" message format: "+message);
-                return;
+            if(typeof log !== "undefined" && log.debug) {
+                log.debug("Received: "+message);
             }
             
             if(!self.hasEnteredGame && action !== Types.Messages.HELLO) { // HELLO must be the first message
@@ -98,14 +105,19 @@ module.exports = Player = Character.extend({
             }
             else if(action === Types.Messages.LOOTMOVE) {
                 if(self.lootmove_callback) {
-                    self.setPosition(message[1], message[2]);
+                    var x = message[1],
+                        y = message[2];
                     
-                    var item = self.server.getEntityById(message[3]);
-                    if(item) {
-                        self.clearTarget();
+                    if(self.server.isValidPosition(x, y)) {
+                        self.setPosition(x, y);
+                        
+                        var item = self.server.getEntityById(message[3]);
+                        if(item) {
+                            self.clearTarget();
 
-                        self.broadcast(new Messages.LootMove(self, item));
-                        self.lootmove_callback(self.x, self.y);
+                            self.broadcast(new Messages.LootMove(self, item));
+                            self.lootmove_callback(self.x, self.y);
+                        }
                     }
                 }
             }
@@ -117,14 +129,14 @@ module.exports = Player = Character.extend({
             else if(action === Types.Messages.ATTACK) {
                 var mob = self.server.getEntityById(message[1]);
                 
-                if(mob) {
+                if(mob && mob instanceof Mob) {
                     self.setTarget(mob);
                     self.server.broadcastAttacker(self);
                 }
             }
             else if(action === Types.Messages.HIT) {
                 var mob = self.server.getEntityById(message[1]);
-                if(mob) {
+                if(mob && mob instanceof Mob) {
                     var dmg = Formulas.dmg(self.weaponLevel, mob.armorLevel);
                     
                     if(dmg > 0) {
@@ -136,7 +148,7 @@ module.exports = Player = Character.extend({
             }
             else if(action === Types.Messages.HURT) {
                 var mob = self.server.getEntityById(message[1]);
-                if(mob && self.hitPoints > 0) {
+                if(mob && mob instanceof Mob && self.hitPoints > 0) {
                     self.hitPoints -= Formulas.dmg(mob.weaponLevel, self.armorLevel);
                     self.server.handleHurtEntity(self);
                     
@@ -369,6 +381,16 @@ module.exports = Player = Character.extend({
     
     onRequestPosition: function(callback) {
         this.requestpos_callback = callback;
+    },
+    
+    resetHandshakeTimeout: function() {
+        clearTimeout(this.disconnectTimeout);
+        this.disconnectTimeout = setTimeout(this.handshakeTimeout.bind(this), 30000); // 30s handshake timeout
+    },
+    
+    handshakeTimeout: function() {
+        this.connection.sendUTF8("timeout");
+        this.connection.close("Handshake timed out");
     },
     
     resetTimeout: function() {

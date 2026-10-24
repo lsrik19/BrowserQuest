@@ -139,14 +139,14 @@ define(['jquery', 'app'], function($, App) {
             var data = app.storage.data;
     		if(data.hasAlreadyPlayed) {
     		    if(data.player.name && data.player.name !== "") {
-		            $('#playername').html(data.player.name);
+		            $('#playername').text(data.player.name);
     		        $('#playerimage').attr('src', data.player.image);
     		    }
     		}
     		
     		$('.play div').click(function(event) {
                 var nameFromInput = $('#nameinput').attr('value'),
-                    nameFromStorage = $('#playername').html(),
+                    nameFromStorage = $('#playername').text(),
                     name = nameFromInput || nameFromStorage;
                 
                 app.tryStartingGame(name);
@@ -186,7 +186,7 @@ define(['jquery', 'app'], function($, App) {
     		});
     		
     		game.onDisconnect(function(message) {
-    		    $('#death').find('p').html(message+"<em>Please reload the page.</em>");
+    		    $('#death').find('p').empty().text((message || "") + " ").append('<em>Please reload the page.</em>');
     		    $('#respawn').hide();
     		});
 	

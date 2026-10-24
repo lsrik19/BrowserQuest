@@ -598,7 +598,7 @@ module.exports = World = cls.Class.extend({
     },
 
     isValidPosition: function(x, y) {
-        if(this.map && _.isNumber(x) && _.isNumber(y) && !this.map.isOutOfBounds(x, y) && !this.map.isColliding(x, y)) {
+        if(this.map && Number.isInteger(x) && Number.isInteger(y) && !this.map.isOutOfBounds(x, y) && !this.map.isColliding(x, y)) {
             return true;
         }
         return false;

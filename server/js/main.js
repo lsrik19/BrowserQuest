@@ -114,7 +114,12 @@ function getConfigFile(path, callback) {
             console.error("Could not open config file:", err.path);
             callback(null);
         } else {
-            callback(JSON.parse(json_string));
+            try {
+                callback(JSON.parse(json_string));
+            } catch(e) {
+                console.error("Syntax error in config file " + path + ": " + e.message);
+                callback(null);
+            }
         }
     });
 }

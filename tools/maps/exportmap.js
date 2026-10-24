@@ -45,17 +45,16 @@ function main() {
 
 // Loads the temporary JSON Tiled map converted by tmx2json.py
 function getTiledJSONmap(filename, callback) {
-    var self = this;
-    
-    path.exists(filename, function(exists) {
-        if(!exists) {  
-            log.error(filename + " doesn't exist.")
+    fs.readFile(filename, 'utf8', function(err, file) {
+        if(err) {  
+            log.error(filename + " could not be read: " + err.message);
             return;
         }
-    
-        fs.readFile(source, function(err, file) {
-            callback(JSON.parse(file.toString()));
-        });
+        try {
+            callback(JSON.parse(file));
+        } catch(e) {
+            log.error("Error parsing " + filename + ": " + e.message);
+        }
     });
 }
 

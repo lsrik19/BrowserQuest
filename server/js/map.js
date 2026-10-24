@@ -12,17 +12,21 @@ module.exports = Map = cls.Class.extend({
     
     	this.isLoaded = false;
     
-    	path.exists(filepath, function(exists) {
-            if(!exists) {
-                log.error(filepath + " doesn't exist.");
+    	fs.readFile(filepath, 'utf8', function(err, file) {
+            if(err) {
+                if(typeof log !== "undefined" && log.error) {
+                    log.error(filepath + " could not be read: " + err.message);
+                }
                 return;
             }
-        
-            fs.readFile(filepath, function(err, file) {
-                var json = JSON.parse(file.toString());
-            
+            try {
+                var json = JSON.parse(file);
                 self.initMap(json);
-            });
+            } catch(e) {
+                if(typeof log !== "undefined" && log.error) {
+                    log.error("Error parsing map file " + filepath + ": " + e.message);
+                }
+            }
         });
     },
 
@@ -97,14 +101,14 @@ module.exports = Map = cls.Class.extend({
     },
 
     isOutOfBounds: function(x, y) {
-        return x <= 0 || x >= this.width || y <= 0 || y >= this.height;
+        return !Number.isInteger(x) || !Number.isInteger(y) || x <= 0 || x >= this.width || y <= 0 || y >= this.height;
     },
 
     isColliding: function(x, y) {
         if(this.isOutOfBounds(x, y)) {
             return false;
         }
-        return this.grid[y][x] === 1;
+        return !!(this.grid && this.grid[y] && this.grid[y][x] === 1);
     },
     
     GroupIdToGroupPosition: function(id) {

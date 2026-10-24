@@ -22,38 +22,56 @@ var _ = require('underscore'),
         },
         
         check: function(msg) {
-            var message = msg.slice(0),
-                type = message[0],
-                format = this.formats[type];
+            if(!Array.isArray(msg) || msg.length === 0) {
+                return false;
+            }
+            var type = msg[0];
+            if(!Number.isInteger(type) || type < 0) {
+                return false;
+            }
             
-            message.shift();
+            var format = Object.prototype.hasOwnProperty.call(this.formats, type) ? this.formats[type] : null;
             
             if(format) {    
-                if(message.length !== format.length) {
+                if(msg.length - 1 !== format.length) {
                     return false;
                 }
-                for(var i = 0, n = message.length; i < n; i += 1) {
-                    if(format[i] === 'n' && !_.isNumber(message[i])) {
-                        return false;
-                    }
-                    if(format[i] === 's' && !_.isString(message[i])) {
-                        return false;
+                for(var i = 0, n = format.length; i < n; i += 1) {
+                    var val = msg[i + 1];
+                    if(format[i] === 'n') {
+                        if(!Number.isInteger(val)) {
+                            return false;
+                        }
+                    } else if(format[i] === 's') {
+                        if(typeof val !== 'string' || val.length > 512) {
+                            return false;
+                        }
                     }
                 }
                 return true;
             }
             else if(type === Types.Messages.WHO) {
-                // WHO messages have a variable amount of params, all of which must be numbers.
-                return message.length > 0 && _.all(message, function(param) { return _.isNumber(param) });
+                // WHO messages have a variable amount of params, all of which must be integers (max 100).
+                if(msg.length <= 1 || msg.length > 101) {
+                    return false;
+                }
+                for(var j = 1; j < msg.length; j += 1) {
+                    if(!Number.isInteger(msg[j])) {
+                        return false;
+                    }
+                }
+                return true;
             }
             else {
-                log.error("Unknown message type: "+type);
+                if(typeof log !== "undefined" && log.error) {
+                    log.error("Unknown message type: " + type);
+                }
                 return false;
             }
         }
     });
 
-    var checker = new FormatChecker;
+    var checker = new FormatChecker();
     
     exports.check = checker.check.bind(checker);
 })();

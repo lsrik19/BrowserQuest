@@ -1,13 +1,26 @@
 
 var Utils = {},
-    sanitizer = require('sanitizer'),
     Types = require("../../shared/js/gametypes");
 
 module.exports = Utils;
 
 Utils.sanitize = function(string) {
-    // Strip unsafe tags, then escape as html entities.
-    return sanitizer.escape(sanitizer.sanitize(string));
+    if (typeof string !== 'string') {
+        return '';
+    }
+    // Strip control characters (ASCII 0-31 except tab and newline, plus DEL 127)
+    var cleaned = string.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+    // Strip HTML tags to eliminate markup injection
+    cleaned = cleaned.replace(/<[^>]*>?/gm, '');
+    // Escape all HTML special entities: & < > " ' /
+    return cleaned
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/\//g, '&#x2F;')
+        .trim();
 };
 
 Utils.random = function(range) {

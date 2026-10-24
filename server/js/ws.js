@@ -1,18 +1,13 @@
 
 var cls = require("./lib/class"),
     url = require('url'),
-    wsserver = require("websocket-server"),
-    miksagoConnection = require('websocket-server/lib/ws/connection'),
-    worlizeRequest = require('websocket').request,
+    WebSocketServer = require('websocket').server,
     http = require('http'),
     Utils = require('./utils'),
     _ = require('underscore'),
-    BISON = require('bison'),
-    WS = {},
-    useBison = false;
+    WS = {};
 
 module.exports = WS;
-
 
 /**
  * Abstract Server and Connection classes
@@ -42,7 +37,7 @@ var Server = cls.Class.extend({
         this._connections[connection.id] = connection;
     },
     
-    removeConnection: function(id) {
+    removeConnection: function(id) {
         delete this._connections[id];
     },
     
@@ -80,23 +75,24 @@ var Connection = cls.Class.extend({
     },
     
     close: function(logError) {
-        log.info("Closing connection to "+this._connection.remoteAddress+". Error: "+logError);
-        this._connection.close();
+        var remote = (this._connection && this._connection.remoteAddress) ? this._connection.remoteAddress : "unknown";
+        if(typeof log !== "undefined" && log.info) {
+            log.info("Closing connection to " + remote + (logError ? ". Error: " + logError : ""));
+        }
+        if(this._connection && this._connection.close) {
+            this._connection.close();
+        }
     }
 });
-
 
 
 /**
  * MultiVersionWebsocketServer
  * 
- * Websocket server supporting draft-75, draft-76 and version 08+ of the WebSocket protocol.
- * Fallback for older protocol versions borrowed from https://gist.github.com/1219165
+ * Standard RFC 6455 WebSocket server using WebSocket-Node.
  */
 WS.MultiVersionWebsocketServer = Server.extend({
-    worlizeServerConfig: {
-        // All options *except* 'httpServer' are required when bypassing
-        // WebSocketServer.
+    serverConfig: {
         maxReceivedFrameSize: 0x10000,
         maxReceivedMessageSize: 0x100000,
         fragmentOutgoingMessages: true,
@@ -104,80 +100,83 @@ WS.MultiVersionWebsocketServer = Server.extend({
         keepalive: true,
         keepaliveInterval: 20000,
         assembleFragments: true,
-        // autoAcceptConnections is not applicable when bypassing WebSocketServer
-        // autoAcceptConnections: false,
         disableNagleAlgorithm: true,
-        closeTimeout: 5000
+        closeTimeout: 5000,
+        autoAcceptConnections: false
     },
     _connections: {},
     _counter: 0,
     
-    init: function(port) {
+    init: function(port, allowedOrigins) {
         var self = this;
         
         this._super(port);
+        this.allowedOrigins = allowedOrigins || null;
+        this._connections = {};
         
         this._httpServer = http.createServer(function(request, response) {
-            var path = url.parse(request.url).pathname;
-            switch(path) {
+            response.setHeader('X-Content-Type-Options', 'nosniff');
+            var pathname = "";
+            try {
+                pathname = new URL(request.url, "http://" + (request.headers.host || "localhost")).pathname;
+            } catch(e) {
+                pathname = request.url;
+            }
+            
+            switch(pathname) {
                 case '/status':
                     if(self.status_callback) {
-                        response.writeHead(200);
+                        response.writeHead(200, { 'Content-Type': 'application/json' });
                         response.write(self.status_callback());
                         break;
                     }
                 default:
-                    response.writeHead(404);
+                    response.writeHead(404, { 'Content-Type': 'text/plain' });
+                    response.write("Not found");
             }
             response.end();
         });
+        
         this._httpServer.listen(port, function() {
-            log.info("Server is listening on port "+port);
+            if(typeof log !== "undefined" && log.info) {
+                log.info("Server is listening on port " + port);
+            }
         });
         
-        this._miksagoServer = wsserver.createServer();
-        this._miksagoServer.server = this._httpServer;
-        this._miksagoServer.addListener('connection', function(connection) {
-            // Add remoteAddress property
-            connection.remoteAddress = connection._socket.remoteAddress;
-
-            // We want to use "sendUTF" regardless of the server implementation
-            connection.sendUTF = connection.send;
-            var c = new WS.miksagoWebSocketConnection(self._createId(), connection, self);
+        var wsConfig = _.extend({ httpServer: this._httpServer }, this.serverConfig);
+        this._wsServer = new WebSocketServer(wsConfig);
+        
+        this._wsServer.on('request', function(request) {
+            if(self.allowedOrigins && !self.isOriginAllowed(request.origin)) {
+                request.reject(403, "Origin not allowed");
+                if(typeof log !== "undefined" && log.error) {
+                    log.error("Rejected connection from unauthorized origin: " + request.origin);
+                }
+                return;
+            }
             
-            if(self.connection_callback) {
-                self.connection_callback(c);
-            }
-            self.addConnection(c);
-        });
-        
-        this._httpServer.on('upgrade', function(req, socket, head) {
-            if (typeof req.headers['sec-websocket-version'] !== 'undefined') {
-                // WebSocket hybi-08/-09/-10 connection (WebSocket-Node)
-                var wsRequest = new worlizeRequest(socket, req, self.worlizeServerConfig);
-                try {
-                    wsRequest.readHandshake();
-                    var wsConnection = wsRequest.accept(wsRequest.requestedProtocols[0], wsRequest.origin);
-                    var c = new WS.worlizeWebSocketConnection(self._createId(), wsConnection, self);
-                    if(self.connection_callback) {
-                        self.connection_callback(c);
-                    }
-                    self.addConnection(c);
+            try {
+                var protocol = request.requestedProtocols && request.requestedProtocols[0] ? request.requestedProtocols[0] : null;
+                var wsConnection = request.accept(protocol, request.origin);
+                var c = new WS.worlizeWebSocketConnection(self._createId(), wsConnection, self);
+                
+                if(self.connection_callback) {
+                    self.connection_callback(c);
                 }
-                catch(e) {
-                    console.log("WebSocket Request unsupported by WebSocket-Node: " + e.toString());
-                    return;
-                }
-            } else {
-                // WebSocket hixie-75/-76/hybi-00 connection (node-websocket-server)
-                if (req.method === 'GET' &&
-                    (req.headers.upgrade && req.headers.connection) &&
-                    req.headers.upgrade.toLowerCase() === 'websocket' &&
-                    req.headers.connection.toLowerCase() === 'upgrade') {
-                    new miksagoConnection(self._miksagoServer.manager, self._miksagoServer.options, req, socket, head);
+                self.addConnection(c);
+            } catch(e) {
+                if(typeof log !== "undefined" && log.error) {
+                    log.error("WebSocket request error: " + e.toString());
                 }
             }
         });
+    },
+    
+    isOriginAllowed: function(origin) {
+        if(!this.allowedOrigins || this.allowedOrigins.length === 0) {
+            return true;
+        }
+        return _.contains(this.allowedOrigins, origin);
     },
     
     _createId: function() {
@@ -197,8 +196,7 @@ WS.MultiVersionWebsocketServer = Server.extend({
 
 
 /**
- * Connection class for Websocket-Node (Worlize)
- * https://github.com/Worlize/WebSocket-Node
+ * Connection class for Websocket-Node
  */
 WS.worlizeWebSocketConnection = Connection.extend({
     init: function(id, connection, server) {
@@ -207,88 +205,51 @@ WS.worlizeWebSocketConnection = Connection.extend({
         this._super(id, connection, server);
         
         this._connection.on('message', function(message) {
-            if(self.listen_callback) {
-                if(message.type === 'utf8') {
-                    if(useBison) {
-                        self.listen_callback(BISON.decode(message.utf8Data));
-                    } else {
-                        try {
-                            self.listen_callback(JSON.parse(message.utf8Data));
-                        } catch(e) {
-                            if(e instanceof SyntaxError) {
-                                self.close("Received message was not valid JSON.");
-                            } else {
-                                throw e;
-                            }
-                        }
-                    }
+            if(self.listen_callback && message.type === 'utf8') {
+                try {
+                    var parsed = JSON.parse(message.utf8Data);
+                    self.listen_callback(parsed);
+                } catch(e) {
+                    self.close("Received message was not valid JSON.");
                 }
             }
         });
         
-        this._connection.on('close', function(connection) {
+        this._connection.on('close', function(reasonCode, description) {
             if(self.close_callback) {
                 self.close_callback();
             }
-            delete self._server.removeConnection(self.id);
+            self._server.removeConnection(self.id);
+        });
+        
+        this._connection.on('error', function(err) {
+            if(typeof log !== "undefined" && log.error) {
+                log.error("WebSocket connection error (" + self.id + "): " + err.toString());
+            }
         });
     },
     
     send: function(message) {
-        var data;
-        if(useBison) {
-            data = BISON.encode(message);
-        } else {
-            data = JSON.stringify(message);
+        try {
+            var data = JSON.stringify(message);
+            this.sendUTF8(data);
+        } catch(e) {
+            if(typeof log !== "undefined" && log.error) {
+                log.error("Error serializing WebSocket message: " + e.toString());
+            }
         }
-        this.sendUTF8(data);
     },
     
     sendUTF8: function(data) {
-        this._connection.sendUTF(data);
-    }
-});
-
-
-/**
- * Connection class for websocket-server (miksago)
- * https://github.com/miksago/node-websocket-server
- */
-WS.miksagoWebSocketConnection = Connection.extend({
-    init: function(id, connection, server) {
-        var self = this;
-        
-        this._super(id, connection, server);
-        
-        this._connection.addListener("message", function(message) {
-            if(self.listen_callback) {
-                if(useBison) {
-                    self.listen_callback(BISON.decode(message));
-                } else {
-                    self.listen_callback(JSON.parse(message));
-                }
+        try {
+            this._connection.sendUTF(data);
+        } catch(e) {
+            if(typeof log !== "undefined" && log.error) {
+                log.error("Error sending UTF8 data: " + e.toString());
             }
-        });
-        
-        this._connection.on('close', function(connection) {
-            if(self.close_callback) {
-                self.close_callback();
-            }
-            delete self._server.removeConnection(self.id);
-        });
-    },
-    
-    send: function(message) {
-        var data;
-        if(useBison) {
-            data = BISON.encode(message);
-        } else {
-            data = JSON.stringify(message);
         }
-        this.sendUTF8(data);
-    },
-    
-    sendUTF8: function(data) {
-        this._connection.send(data);
     }
 });
+
+// Backward compatibility alias
+WS.miksagoWebSocketConnection = WS.worlizeWebSocketConnection;

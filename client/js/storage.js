@@ -4,7 +4,11 @@ define(function() {
     var Storage = Class.extend({
         init: function() {
             if(this.hasLocalStorage() && localStorage.data) {
-                this.data = JSON.parse(localStorage.data);
+                try {
+                    this.data = JSON.parse(localStorage.data);
+                } catch(e) {
+                    this.resetData();
+                }
             } else {
                 this.resetData();
             }

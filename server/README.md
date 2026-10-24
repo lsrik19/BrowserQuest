@@ -1,17 +1,14 @@
 BrowserQuest server documentation
 =================================
 
-The game server currently runs on nodejs v0.4.7 (but should run fine on the latest stable as well) and requires the latest versions of the following npm libraries:
+The game server runs on modern Node.js (and supports LTS versions) and requires the following npm libraries:
 
 - underscore
 - log
-- bison
 - websocket
-- websocket-server
-- sanitizer
 - memcache (only if you want metrics)
 
-All of them can be installed via `npm install -d` (this will install a local copy of all the dependencies in the node_modules directory)
+All of them can be installed via `npm install` (this will install a local copy of all dependencies in the node_modules directory)
 
 
 Configuration

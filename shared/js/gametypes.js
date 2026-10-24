@@ -157,7 +157,11 @@ var kinds = {
     lavanpc: [Types.Entities.LAVANPC, "npc"],
     
     getType: function(kind) {
-        return kinds[Types.getKindAsString(kind)][1];
+        var str = Types.getKindAsString(kind);
+        if(str && kinds[str]) {
+            return kinds[str][1];
+        }
+        return null;
     }
 };
 
