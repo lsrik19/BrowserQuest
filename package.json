@@ -1,13 +1,19 @@
 {
-    "name": "BrowserQuest"
-  , "version": "0.0.1"
-  , "private": false 
-  , "dependencies": {
-    "underscore": "^1.13.7"
-    , "log": "^1.4.0"
-    , "websocket": "^1.0.35"
-  }
-  , "optionalDependencies": {
-    "memcache": "^0.3.0"
-  }
+    "name": "BrowserQuest",
+    "version": "0.0.1",
+    "private": false,
+    "scripts": {
+        "start": "node server/js/main.js",
+        "client": "npx --yes http-server client -p 8080 -c-1",
+        "test": "node tests/test_security_and_db.js"
+    },
+    "dependencies": {
+        "@supabase/supabase-js": "^2.118.0",
+        "log": "^1.4.0",
+        "underscore": "^1.13.7",
+        "websocket": "^1.0.35"
+    },
+    "optionalDependencies": {
+        "memcache": "^0.3.0"
+    }
 }

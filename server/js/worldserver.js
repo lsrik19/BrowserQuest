@@ -20,12 +20,13 @@ var cls = require("./lib/class"),
 // ======= GAME SERVER ========
 
 module.exports = World = cls.Class.extend({
-    init: function(id, maxPlayers, websocketServer) {
+    init: function(id, maxPlayers, websocketServer, database) {
         var self = this;
 
         this.id = id;
         this.maxPlayers = maxPlayers;
         this.server = websocketServer;
+        this.db = database || null;
         this.ups = 50;
         
         this.map = null;
@@ -110,6 +111,9 @@ module.exports = World = cls.Class.extend({
     
             player.onExit(function() {
                 log.info(player.name + " has left the game.");
+                if(self.db && self.db.enabled) {
+                    self.db.savePlayer(player);
+                }
                 self.removePlayer(player);
                 self.decrementPlayerCount();
                 
@@ -543,6 +547,9 @@ module.exports = World = cls.Class.extend({
                     item = this.getDroppedItem(mob);
 
                 this.pushToPlayer(attacker, new Messages.Kill(mob));
+                if(self.db && self.db.enabled && attacker && attacker.name) {
+                    self.db.recordKill(attacker.name);
+                }
                 this.pushToAdjacentGroups(mob.group, mob.despawn()); // Despawn must be enqueued before the item drop
                 if(item) {
                     this.pushToAdjacentGroups(mob.group, mob.drop(item));

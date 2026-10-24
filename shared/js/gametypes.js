@@ -1,4 +1,8 @@
 
+if(typeof _ === 'undefined' && typeof require !== 'undefined') {
+    _ = require('underscore');
+}
+
 Types = {
     Messages: {
         HELLO: 0,

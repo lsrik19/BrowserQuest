@@ -1,15 +1,18 @@
 
 var fs = require('fs'),
-    Metrics = require('./metrics');
+    _ = require('underscore'),
+    Metrics = require('./metrics'),
+    Database = require('./db'),
+    Player = require('./player');
 
 
 function main(config) {
     var ws = require("./ws"),
         WorldServer = require("./worldserver"),
         Log = require('log'),
-        _ = require('underscore'),
         server = new ws.MultiVersionWebsocketServer(config.port),
-        metrics = config.metrics_enabled ? new Metrics(config) : null;
+        metrics = config.metrics_enabled ? new Metrics(config) : null,
+        db = new Database(config),
         worlds = [],
         lastTotalPlayers = 0,
         checkPopulationInterval = setInterval(function() {
@@ -75,7 +78,7 @@ function main(config) {
     };
 
     _.each(_.range(config.nb_worlds), function(i) {
-        var world = new WorldServer('world'+ (i+1), config.nb_players_per_world, server);
+        var world = new WorldServer('world'+ (i+1), config.nb_players_per_world, server, db);
         world.run(config.map_filepath);
         worlds.push(world);
         if(metrics) {

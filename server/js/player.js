@@ -52,26 +52,51 @@ module.exports = Player = Character.extend({
             self.resetTimeout();
             
             if(action === Types.Messages.HELLO) {
-                var name = Utils.sanitize(message[1]);
+                var rawName = message[1];
+                var name = (typeof rawName === 'string') ? Utils.sanitize(rawName) : "";
                 
-                // If name was cleared by the sanitizer, give a default name.
-                // Always ensure that the name is not longer than a maximum length.
-                // (also enforced by the maxlength attribute of the name input element).
                 self.name = (name === "") ? "lorem ipsum" : name.substr(0, 15);
-                
                 self.kind = Types.Entities.WARRIOR;
-                self.equipArmor(message[2]);
-                self.equipWeapon(message[3]);
-                self.orientation = Utils.randomOrientation();
-                self.updateHitPoints();
-                self.updatePosition();
                 
-                self.server.addPlayer(self);
-                self.server.enter_callback(self);
+                var defaultArmor = message[2],
+                    defaultWeapon = message[3];
+                
+                var finishEnterGame = function(armor, weapon) {
+                    self.equipArmor(armor);
+                    self.equipWeapon(weapon);
+                    self.orientation = Utils.randomOrientation();
+                    self.updateHitPoints();
+                    self.updatePosition();
+                    
+                    self.server.addPlayer(self);
+                    self.server.enter_callback(self);
 
-                self.send([Types.Messages.WELCOME, self.id, self.name, self.x, self.y, self.hitPoints]);
-                self.hasEnteredGame = true;
-                self.isDead = false;
+                    self.send([Types.Messages.WELCOME, self.id, self.name, self.x, self.y, self.hitPoints]);
+                    
+                    // Sync cloud equipment to client if different from what client sent
+                    if(armor !== defaultArmor) {
+                        self.send(self.equip(armor).serialize());
+                    }
+                    if(weapon !== defaultWeapon) {
+                        self.send(self.equip(weapon).serialize());
+                    }
+                    
+                    self.hasEnteredGame = true;
+                    self.isDead = false;
+                };
+                
+                if(self.server.db && self.server.db.enabled) {
+                    self.server.db.getOrCreatePlayer(self.name, defaultArmor, defaultWeapon, function(err, record) {
+                        if(typeof log !== "undefined" && log.info) {
+                            log.info("DB player loaded for " + self.name + ": armor=" + (record && record.armor) + ", weapon=" + (record && record.weapon));
+                        }
+                        var cloudArmor = (record && record.armor) ? record.armor : defaultArmor;
+                        var cloudWeapon = (record && record.weapon) ? record.weapon : defaultWeapon;
+                        finishEnterGame(cloudArmor, cloudWeapon);
+                    });
+                } else {
+                    finishEnterGame(defaultArmor, defaultWeapon);
+                }
             }
             else if(action === Types.Messages.WHO) {
                 message.shift();
@@ -364,6 +389,10 @@ module.exports = Player = Character.extend({
                 this.send(new Messages.HitPoints(this.maxHitPoints).serialize());
             } else if(Types.isWeapon(item.kind)) {
                 this.equipWeapon(item.kind);
+            }
+            
+            if(this.server.db && this.server.db.enabled) {
+                this.server.db.saveEquipment(this.name, this.armor, this.weapon);
             }
         }
     },
