@@ -5,6 +5,7 @@ define(['jquery', 'app'], function($, App) {
     var initApp = function() {
         $(document).ready(function() {
         	app = new App();
+            window.app = app;
             app.center();
         
             if(Detect.isWindows()) {
@@ -173,6 +174,7 @@ define(['jquery', 'app'], function($, App) {
         	    input = document.getElementById("chatinput");
 
     		game = new Game(app);
+            window.game = game;
     		game.setup('#bubbles', canvas, background, foreground, input);
     		game.setStorage(app.storage);
     		app.setGame(game);

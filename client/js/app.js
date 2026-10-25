@@ -47,7 +47,11 @@ define(['jquery', 'storage'], function($, Storage) {
                     }
                     this.$playDiv.unbind('click');
                     var watchCanStart = setInterval(function() {
-                        log.debug("waiting...");
+                        var status = !self.game ? "game" :
+                                     !self.game.map ? "game.map" :
+                                     !self.game.map.isLoaded ? ("map (tilesetsLoaded=" + self.game.map.tilesetsLoaded + ", mapLoaded=" + self.game.map.mapLoaded + ")") :
+                                     "ready";
+                        log.debug("waiting for " + status + "...");
                         if(self.canStartGame()) {
                             setTimeout(function() {
                                 if(!self.isMobile) {

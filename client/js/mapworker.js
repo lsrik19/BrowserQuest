@@ -2,10 +2,14 @@
 importScripts('../maps/world_client.js', 'lib/underscore.min.js');
 
 onmessage = function (event) {
-    generateCollisionGrid();
-    generatePlateauGrid();
-    
-    postMessage(mapData);
+    try {
+        generateCollisionGrid();
+        generatePlateauGrid();
+        postMessage(mapData);
+    } catch(err) {
+        console.error("Error in mapworker:", err);
+        throw err;
+    }
 };
 
 function generateCollisionGrid() {

@@ -69,6 +69,9 @@ var requirejs, require, define;
         fs = require('fs');
         vm = require('vm');
         path = require('path');
+        if (!path.existsSync && fs.existsSync) {
+            path.existsSync = fs.existsSync.bind(fs);
+        }
         nodeRequire = require;
         nodeDefine = define;
         reqMain = require.main;
@@ -2442,7 +2445,7 @@ define('node/file', ['fs', 'path'], function (fs, path) {
 
     function mkDir(dir) {
         if (!exists(dir)) {
-            fs.mkdirSync(dir, 0777);
+            fs.mkdirSync(dir, 0o777);
         }
     }
 

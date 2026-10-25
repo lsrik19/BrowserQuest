@@ -39,7 +39,8 @@ var _ = require('underscore'),
                 for(var i = 0, n = format.length; i < n; i += 1) {
                     var val = msg[i + 1];
                     if(format[i] === 'n') {
-                        if(!Number.isInteger(val)) {
+                        var isInt = Number.isInteger(val) || (typeof val === 'string' && /^-?\d+$/.test(val));
+                        if(!isInt) {
                             return false;
                         }
                     } else if(format[i] === 's') {
@@ -56,7 +57,9 @@ var _ = require('underscore'),
                     return false;
                 }
                 for(var j = 1; j < msg.length; j += 1) {
-                    if(!Number.isInteger(msg[j])) {
+                    var val = msg[j];
+                    var isInt = Number.isInteger(val) || (typeof val === 'string' && /^-?\d+$/.test(val));
+                    if(!isInt) {
                         return false;
                     }
                 }

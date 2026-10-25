@@ -210,7 +210,10 @@ WS.worlizeWebSocketConnection = Connection.extend({
                     var parsed = JSON.parse(message.utf8Data);
                     self.listen_callback(parsed);
                 } catch(e) {
-                    self.close("Received message was not valid JSON.");
+                    if(typeof log !== "undefined" && log.error) {
+                        log.error("Received invalid JSON: " + JSON.stringify(message.utf8Data) + " (Error: " + e.message + ")");
+                    }
+                    self.close("Received message was not valid JSON: " + message.utf8Data);
                 }
             }
         });

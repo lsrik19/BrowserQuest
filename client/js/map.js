@@ -32,6 +32,10 @@ define(['jquery', 'area'], function($, Area) {
         	if(useWorker) {
         	    log.info("Loading map with web worker.");
                 var worker = new Worker('js/mapworker.js');
+                worker.onerror = function(event) {
+                    log.error("Map worker error: " + (event.message || "Failed to load mapworker.js"));
+                    console.error("Map worker error:", event);
+                };
                 worker.postMessage(1);
             
                 worker.onmessage = function(event) {
@@ -130,7 +134,12 @@ define(['jquery', 'area'], function($, Area) {
     
             log.info("Loading tileset: "+filepath);
     
-        	tileset.onload = function() {
+        	tileset.onerror = function(event) {
+                log.error("Failed to load tileset: " + filepath);
+                console.error("Tileset error:", filepath, event);
+            };
+            
+            tileset.onload = function() {
                 if(tileset.width % self.tilesize > 0) {
                     throw Error("Tileset size should be a multiple of "+ self.tilesize);
                 }
